@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="us">
+    <head>
+        <title>TestTask</title>
+    </head>
+    <body>
+        <h1>Test Task</h1>
+            <button onclick="sendStart()">Start</button>
+            <button onclick="sendStop()">Stop</button>
+        <ul id='messages'>
+        </ul>
+        <script>
+            let start = new WebSocket("ws://127.0.0.1:8000/start");
+            start.onmessage = function(event) {
+                let data = JSON.parse(event.data)
+                if ('user_key' in data) { localStorage.setItem('currentWSKey', data['user_key']) }
+                else {
+                    let messages = document.getElementById('messages')
+                    let message = document.createElement('li')
+                    let content
+                    if ('timer' in data) {
+                        content = document.createTextNode(data['timer'])
+                        message.appendChild(content)
+                        messages.appendChild(message)
+                    }
+                }
+            };
+            function sendStart() {
+                start.send(JSON.stringify({event: 'start'}))
+            }
+            function sendStop() {
+                let xhr = new XMLHttpRequest();
+                let wsKey = localStorage.getItem('currentWSKey')
+                let json = JSON.stringify({wsKey: wsKey});
+                xhr.open("POST", '/', true)
+                xhr.setRequestHeader('Content-type', 'application/json; charset=utf-8');
+                xhr.send(json);
+            }
+        </script>
+    </body>
+</html>
