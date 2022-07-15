@@ -14,6 +14,7 @@ from starlette.config import Config
 
 config = Config(".env")
 DATABASE_URL = config('DATABASE_URL', cast=DatabaseURL)
+HOST = config('HOST')
 user_states = {}
 templates = Jinja2Templates(directory='templates')
 
@@ -27,14 +28,31 @@ def create_response_dict(timestamp, timer, event):
     return resp
 
 
+def char_to_int_seconds(char):
+    try:
+        secs = sum(int(x) * 60 ** i for i, x in enumerate(reversed(char.split(':'))))
+    except (ValueError, AttributeError):
+        secs = 0
+    return secs
+
+
 class Homepage(HTTPEndpoint):
     async def get(self, request):
         database = Database(DATABASE_URL)
         await database.connect()
-        query = "select to_char(time_stamp, 'dd.mm.yyyy hh:mm:ss') as time_stamp, timer, event from results"
+        query = (
+            "select to_char(time_stamp, 'dd.mm.yyyy hh:MI:ss') as time_stamp,"
+            " timer, event from results order by time_stamp"
+        )
         rows = await database.fetch_all(query=query)
         await database.disconnect()
-        return templates.TemplateResponse('home.html', {'request': request, 'rows': rows})
+        duration = '00:00:00'
+        if rows:
+            latest = dict(rows[-1])
+            duration = latest['timer']
+        return templates.TemplateResponse(
+            'home.html', {'request': request, 'rows': rows, 'duration': duration, 'host': HOST}
+        )
 
     async def post(self, request):
         try:
@@ -45,20 +63,14 @@ class Homepage(HTTPEndpoint):
             database = Database(DATABASE_URL)
             await database.connect()
 
-            select_query = "select timer from results where time_stamp = (select max(time_stamp) from results)"
             insert_query = "insert into results (time_stamp, timer, event) values (:timestamp, :timer, :event)"
 
-            ret = await database.fetch_one(select_query)
-            if ret and 'timer' in dict(ret):
-                secs = sum(int(x) * 60 ** i for i, x in enumerate(reversed(dict(ret)['timer'].split(':'))))
-            else:
-                secs = 0
             if payload['event'] == 'start':
                 timestamp = user_states[key]['start_time']
-                timer = str(time.strftime('%H:%M:%S', time.gmtime(secs)))
+                timer = str(time.strftime('%H:%M:%S', time.gmtime(payload['timer'])))
             else:
-                timestamp = user_states[key]['start_time'] + datetime.timedelta(seconds=payload['timer'])
-                timer = str(time.strftime('%H:%M:%S', time.gmtime(secs + payload['timer'])))
+                timestamp = datetime.datetime.now()
+                timer = str(time.strftime('%H:%M:%S', time.gmtime(payload['timer'])))
             await database.execute(
                 query=insert_query,
                 values={'timestamp': timestamp, 'timer': timer, 'event': payload['event']}
@@ -93,7 +105,12 @@ class Start(WebSocketEndpoint):
         key = self.get_security_key()
         start_time = datetime.datetime.now()
         try:
-            user_states[key] = {'state': 'start', 'start_time': start_time, 'timer': 0}
+
+            user_states[key] = {
+                'state': 'start',
+                'start_time': start_time,
+                'timer': char_to_int_seconds(data['duration'])
+            }
             while user_states[key]['state'] == 'start':
                 await asyncio.sleep(0.5)
                 user_states[key]['timer'] += 0.5
@@ -115,4 +132,3 @@ routes = [
 ]
 
 app = Starlette(routes=routes)
-

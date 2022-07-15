@@ -3,13 +3,17 @@
 ## Run in local mode:
 1. Create in root directory file named `.env`
 2. Fill this file with values according to the example below
-``
+
+
+```
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=testPassword
 POSTGRES_HOST=postgres-host
 POSTGRES_DB=test_base
 DATABASE_URL=postgresql+asyncpg://postgres:testPassword@postgres-host/test_base
-HOST=127.0.0.1``
+HOST=127.0.0.1
+```
+
 where the `HOST` is the public IP address of your server
 3. run `docker-compose up --build`
 

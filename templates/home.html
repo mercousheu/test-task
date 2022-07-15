@@ -36,37 +36,25 @@
         </thead>
         <tbody>
         {% for item in rows %}
-            {% if loop.index == rows|length %}
-                <tr id="lastRow">
-                    <td>{{item.time_stamp}}</td>
-                    <td>{{ item.timer }}</td>
-                    <td>{{ item.event }}</td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td>{{item.time_stamp}}</td>
-                    <td>{{ item.timer }}</td>
-                    <td>{{ item.event }}</td>
-                </tr>
-            {% endif %}
+            <tr id="lastRow">
+                <td>{{item.time_stamp}}</td>
+                <td>{{ item.timer }}</td>
+                <td>{{ item.event }}</td>
+            </tr>
         {% endfor %}
         </tbody>
     </table>
 </div>
 <script>
-    let start = new WebSocket('ws://127.0.0.1:8000/start');
+    const host = "{{ host }}"
+    let start = new WebSocket('ws://' + host + ':8000/start');
     const counter = document.getElementById('counter')
     const eventBtn = document.getElementById('eventBtn')
-    counter.textContent = '00:00:00'
+    counter.textContent = '{{ duration }}'
     function addRow(data) {
         let messagesTable = document.getElementById('messages');
         let index = messagesTable.rows.length;
-        let tr = messagesTable.insertRow(index);
-        let current = document.getElementById('lastRow')
-        if (current) {
-            current.removeAttribute('id')
-        }
-        tr.setAttribute('id', 'lastRow')
+        let tr = messagesTable.insertRow(index)
         tr.innerHTML = '<td>' + data['time_stamp'] + '</td>' + '<td>' + data['timer'] + '</td>' + '<td>' + data['event'] + '</td>'
 
     }
@@ -124,7 +112,7 @@
         json['timer'] = counterSeconds
         if (currentEvent && currentEvent === 'start') {
             json['event'] = 'start'
-            start.send(JSON.stringify({event: 'start'}))
+            start.send(JSON.stringify({event: 'start', 'duration': counter.textContent}))
         } else {
             json['event'] = 'stop'
         }
