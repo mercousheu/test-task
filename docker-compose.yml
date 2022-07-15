@@ -1,0 +1,29 @@
+version: '3.5'
+
+services:
+
+  postgres-container:
+    image: 'postgres:12'
+    hostname: postgres-host
+    container_name: postgres
+    volumes:
+      - ./initial.sql:/docker-entrypoint-initdb.d/10-initial.sql
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+
+  app-container:
+    container_name: app
+    build:
+      context: .
+      dockerfile: App
+    command: uvicorn app:app --host 0.0.0.0
+    depends_on:
+      - postgres-container
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env

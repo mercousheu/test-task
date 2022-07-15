@@ -1,41 +1,135 @@
 <!DOCTYPE html>
 <html lang="us">
-    <head>
-        <title>TestTask</title>
-    </head>
-    <body>
-        <h1>Test Task</h1>
-            <button onclick="sendStart()">Start</button>
-            <button onclick="sendStop()">Stop</button>
-        <ul id='messages'>
-        </ul>
-        <script>
-            let start = new WebSocket("ws://127.0.0.1:8000/start");
-            start.onmessage = function(event) {
-                let data = JSON.parse(event.data)
-                if ('user_key' in data) { localStorage.setItem('currentWSKey', data['user_key']) }
-                else {
-                    let messages = document.getElementById('messages')
-                    let message = document.createElement('li')
-                    let content
-                    if ('timer' in data) {
-                        content = document.createTextNode(data['timer'])
-                        message.appendChild(content)
-                        messages.appendChild(message)
-                    }
-                }
-            };
-            function sendStart() {
-                start.send(JSON.stringify({event: 'start'}))
+<head>
+    <title>TestTask</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
+</head>
+<body>
+
+<div class="px-4 py-5 my-5 text-center">
+    <h1 class="display-5 fw-bold">Test Task</h1>
+    <div class="col-lg-6 mx-auto">
+
+    </div>
+</div>
+
+
+<div class="col-lg-10 mx-auto">
+    <div class="row">
+        <div class="col-lg-2 text-left">
+            <h2 id="counter" class="display-5 fw-bold">00:00:00</h2>
+        </div>
+        <div class="col-lg-5 text-left">
+            <button type="button" onclick="sendEvent()" id="eventBtn" datatype="start"
+                    class="btn btn-primary btn-lg px-4 gap-3">Start
+            </button>
+        </div>
+    </div>
+    <table id='messages' class="table table-striped table-sm">
+        <thead>
+        <tr>
+            <th>TimeStamp</th>
+            <th>Timer</th>
+            <th>Event</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for item in rows %}
+            {% if loop.index == rows|length %}
+                <tr id="lastRow">
+                    <td>{{item.time_stamp}}</td>
+                    <td>{{ item.timer }}</td>
+                    <td>{{ item.event }}</td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td>{{item.time_stamp}}</td>
+                    <td>{{ item.timer }}</td>
+                    <td>{{ item.event }}</td>
+                </tr>
+            {% endif %}
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<script>
+    let start = new WebSocket('ws://127.0.0.1:8000/start');
+    const counter = document.getElementById('counter')
+    const eventBtn = document.getElementById('eventBtn')
+    counter.textContent = '00:00:00'
+    function addRow(data) {
+        let messagesTable = document.getElementById('messages');
+        let index = messagesTable.rows.length;
+        let tr = messagesTable.insertRow(index);
+        let current = document.getElementById('lastRow')
+        if (current) {
+            current.removeAttribute('id')
+        }
+        tr.setAttribute('id', 'lastRow')
+        tr.innerHTML = '<td>' + data['time_stamp'] + '</td>' + '<td>' + data['timer'] + '</td>' + '<td>' + data['event'] + '</td>'
+
+    }
+
+    start.onmessage = function (event) {
+        let data = JSON.parse(event.data)
+        let eventBtnCls = eventBtn.getAttribute('datatype')
+        if ('user_key' in data) {
+            localStorage.setItem('currentWSKey', data['user_key'])
+        } else {
+            if ('timer' in data && eventBtnCls === 'stop') {
+                counter.textContent = data['timer']
             }
-            function sendStop() {
-                let xhr = new XMLHttpRequest();
-                let wsKey = localStorage.getItem('currentWSKey')
-                let json = JSON.stringify({wsKey: wsKey});
-                xhr.open("POST", '/', true)
-                xhr.setRequestHeader('Content-type', 'application/json; charset=utf-8');
-                xhr.send(json);
+        }
+    };
+
+    function getSeconds(raw) {
+        let spl = raw.split(':');
+        return (+spl[0]) * 60 * 60 + (+spl[1]) * 60 + (+spl[2]);
+    }
+
+    function setEventAttr() {
+        let current
+        let eventBtnCls = eventBtn.getAttribute('datatype')
+        if (eventBtnCls === 'start') {
+            eventBtn.setAttribute('datatype', 'stop')
+            eventBtn.textContent = 'Stop'
+            current = 'start'
+        } else {
+            eventBtn.setAttribute('datatype', 'start')
+            current = 'stop'
+            eventBtn.textContent = 'Start'
+        }
+        return current
+    }
+
+    function sendData(data) {
+        let xhr = new XMLHttpRequest();
+        data['wsKey'] = localStorage.getItem('currentWSKey')
+        let json = JSON.stringify(data);
+        xhr.open("POST", '/', true)
+        xhr.setRequestHeader('Content-type', 'application/json; charset=utf-8');
+        xhr.send(json);
+        xhr.onload = function () {
+            if (xhr.readyState === xhr.DONE && xhr.status === 200) {
+                addRow(JSON.parse(xhr.responseText))
             }
-        </script>
-    </body>
+        }
+    }
+
+    function sendEvent() {
+        let currentEvent = setEventAttr()
+        let counterSeconds = getSeconds(counter.textContent)
+        let json = {}
+        json['timer'] = counterSeconds
+        if (currentEvent && currentEvent === 'start') {
+            json['event'] = 'start'
+            start.send(JSON.stringify({event: 'start'}))
+        } else {
+            json['event'] = 'stop'
+        }
+        sendData(json)
+    }
+</script>
+</body>
 </html>
